@@ -13,12 +13,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 @Controller
 public class TechNewsController {
@@ -52,6 +50,14 @@ public class TechNewsController {
             }
         } catch (NullPointerException e) {
             model.addAttribute("notice", "Email address is not recognized!");
+            return "login";
+        }
+
+        // Validate Password
+        String sessionUserPassword = sessionUser.getPassword();
+        boolean isPasswordValid = BCrypt.checkpw(user.getPassword(), sessionUserPassword);
+        if(isPasswordValid == false) {
+            model.addAttribute("notice", "Password is not valid!");
             return "login";
         }
 
@@ -116,7 +122,7 @@ public class TechNewsController {
     @PostMapping("/posts/{id}")
     public String updatePostDashboardPage(@PathVariable int id, @ModelAttribute Post post, Model model, HttpServletRequest request) {
 
-        if (request.getSession(false) != null) {
+        if (request.getSession(false) == null) {
             model.addAttribute("user", new User());
             return "redirect/dashboard";
         } else {
@@ -134,7 +140,14 @@ public class TechNewsController {
         if (comment.getCommentText().isEmpty() || comment.getCommentText().equals(null)) {
             return "redirect:/singlePostEmptyComment/" + comment.getPostId();
         } else {
-           return "login";
+           if (request.getSession(false) != null) {
+               User sessionUser = (User) request.getSession().getAttribute("SESSION_USER");
+               comment.setUserId(sessionUser.getId());
+               commentRepository.save(comment);
+               return "redirect:/post/" + comment.getPostId();
+           } else {
+               return "login";
+           }
         }
     }
 
@@ -156,9 +169,8 @@ public class TechNewsController {
         }
     }
 
-    @PostMapping("/posts/upvote")
-    public void addVoteCommentsPage(@RequestBody Vote vote, HttpServletRequest request, HttpServletRequest response) {
-
+    @PutMapping("/posts/upvote")
+    public void addVoteCommentsPage(@RequestBody Vote vote, HttpServletRequest request, HttpServletResponse response) {
         if (request.getSession(false) != null) {
             Post returnPost = null;
             User sessionUser = (User) request.getSession().getAttribute("SESSION_USER");
